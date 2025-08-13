@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>My Web Project</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Hello, Node.js Web Project!</h1>
+    <p>This is your starter template.</p>
+    <button id="apiBtn">Fetch API Message</button>
+    <p id="apiResponse"></p>
+
+    <script>
+        document.getElementById('apiBtn').addEventListener('click', async () => {
+            const res = await fetch('/api/hello');
+            const data = await res.json();
+            document.getElementById('apiResponse').textContent = data.message;
+        });
+    </script>
+</body>
+</html>

@@ -1,14 +1,17 @@
+require('dotenv').config();
 const express = require('express');
+const path = require('path');
+const routes = require('./routes');
+
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware to parse JSON
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Sample route
-app.get('/', (req, res) => {
-  res.send('Hello, this is ephemeral archive!');
-});
+// Routes
+app.use('/', routes);
 
 // Start server
 app.listen(PORT, () => {
