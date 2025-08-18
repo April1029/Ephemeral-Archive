@@ -1,0 +1,20 @@
+/* Resets / base (global) */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Georgia', serif;
+  line-height: 1.6;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+  color: #f0f0f0;
+  overflow-x: hidden;
+}
