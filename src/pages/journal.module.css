@@ -1,0 +1,248 @@
+.capture-memory {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e293b 100%);
+  padding: 1rem;
+  font-family: Georgia, serif;
+}
+
+.container {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-top: 2rem;
+}
+
+.main-title {
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 300;
+  color: #f1f5f9;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: #cbd5e1;
+  font-size: 1.125rem;
+  font-weight: 300;
+}
+
+.main-capture-area {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.prompts {
+  margin-bottom: 1.5rem;
+}
+
+.prompt-text {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.text-input-area {
+  position: relative;
+}
+
+.memory-textarea {
+  width: 100%;
+  height: 12rem;
+  background: transparent;
+  border: none;
+  resize: none;
+  color: #f1f5f9;
+  font-size: 1.125rem;
+  line-height: 1.75;
+  font-family: Georgia, serif;
+  outline: none;
+}
+
+.memory-textarea::placeholder {
+  color: #64748b;
+}
+
+.word-count {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.action-section {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.save-button {
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  border: none;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.save-button:enabled {
+  cursor: pointer;
+  background: linear-gradient(to right, #f59e0b, #d97706);
+  color: white;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+}
+
+.save-button:disabled {
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
+  color: #64748b;
+  box-shadow: none;
+}
+
+.save-button:enabled:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(245, 158, 11, 0.4);
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+}
+
+.success-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.success-card {
+  background: rgba(34, 197, 94, 0.2);
+  backdrop-filter: blur(16px);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.success-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.success-title {
+  color: #86efac;
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.success-subtitle {
+  color: #4ade80;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.recent-memories {
+  margin-top: 3rem;
+}
+
+.recent-title {
+  font-size: 2rem;
+  font-weight: 300;
+  color: #e2e8f0;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.memories-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.memory-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.memory-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.memory-content {
+  color: #cbd5e1;
+  line-height: 1.75;
+  margin-bottom: 0.75rem;
+}
+
+.memory-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-timestamp {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.floating-hint {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  border-radius: 9999px;
+  padding: 0.5rem 1rem;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+  50% { 
+    transform: scale(1.05); 
+    opacity: 0.9; 
+  }
+}
