@@ -23,7 +23,7 @@
 .navLinks {
   list-style: none;
   display: flex;
-  gap: 1.5rem;
+  gap: 2.0rem;
 }
 
 .navLinks a {

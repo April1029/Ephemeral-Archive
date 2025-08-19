@@ -43,7 +43,7 @@
   font-size: clamp(2.5rem, 8vw, 5rem);
   font-weight: 300;
   margin-bottom: 1rem;
-  background: linear-gradient(45deg, #e6ddd4, #f0f0f0, #bf00ff);
+  background: linear-gradient(45deg, #e6ddd4, #f0f0f0, #ff00ff);
   background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -85,7 +85,7 @@
 .cta-button {
   padding: 1rem 2.5rem;
   font-size: 1.1rem;
-  background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(45deg, #f662f6 0%, #764ba2 100%);
   border: none;
   border-radius: 50px;
   color: white;
@@ -94,6 +94,7 @@
   text-decoration: none;
   display: inline-block;
   font-family: inherit;
+  margin-bottom: 1rem;
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
   opacity: 0;
   animation: fadeInUp 1.5s ease-out 1.5s forwards;
@@ -102,7 +103,7 @@
 .cta-button:hover {
   transform: translateY(-3px);
   box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
-  background: linear-gradient(45deg, #7c94f0 0%, #8a5ab2 100%);
+  background: linear-gradient(45deg, #ffb3ff 0%, #8a5ab2 100%);
 }
 
 .cta-button--large {
@@ -110,9 +111,20 @@
   padding: 1.2rem 3rem;
 }
 
+.cta-button:last-child {
+  margin-bottom: 0;
+}
+
+.container {
+  max-width: 1200px;  
+  margin: 0 auto;      /* center horizontally */
+  padding: 0 24px;     /* safe side gutters at small screens */
+}
+
 /* Sections */
 .section {
-  padding: 6rem 2rem;
+  /* padding: 4rem 2rem; */
+  padding: 100px 0;
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -121,7 +133,7 @@
   background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.05) 100%);
   backdrop-filter: blur(10px);
   border-radius: 20px;
-  margin: 4rem 2rem;
+  margin: 2rem 2rem;
   padding: 4rem;
   border: 1px solid rgba(255,255,255,0.1);
 }
@@ -135,12 +147,13 @@
 }
 
 /* Moments */
+
 .moment-card {
   background: rgba(255,255,255,0.03);
   border-radius: 15px;
   padding: 2rem;
   margin: 2rem 0;
-  border-left: 4px solid #d4af37;
+  border-left: 4px solid #ffb3ff;
   backdrop-filter: blur(5px);
   transition: all 0.3s ease;
   opacity: 0;
@@ -150,7 +163,7 @@
 
 .moment-card:nth-child(even) {
   animation-delay: 0.2s;
-  border-left-color: #667eea;
+  border-left-color: #ff00ff;
 }
 
 .moment-card:nth-child(odd) {
@@ -181,7 +194,7 @@
   line-height: 1.6;
 }
 
-.gold { color: #d4af37; }
+.gold { color: #ffb3ff; }
 
 /* Features */
 .features-grid {
@@ -304,3 +317,17 @@
   40% { transform: translateX(-50%) translateY(-10px); }
   60% { transform: translateX(-50%) translateY(-5px); }
 }
+
+/* Initial hidden state for anything you want to animate in */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+/* Becomes visible when the observer adds this class */
+.revealVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
