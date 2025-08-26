@@ -71,6 +71,14 @@
   color: #64748b;
 }
 
+.memory-image {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  display: block;
+}
+
 .word-count {
   position: absolute;
   bottom: 0.5rem;
@@ -98,7 +106,7 @@
 
 .save-button:enabled {
   cursor: pointer;
-  background: linear-gradient(to right, #f59e0b, #d97706);
+  background: linear-gradient(to right, #ffb3ff, #ff00ff);
   color: white;
   box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
 }

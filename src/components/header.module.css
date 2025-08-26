@@ -2,7 +2,7 @@
 .header {
   width: 100%;
   padding: 1rem 2rem;
-  background: #1a1a2e;
+  padding: 1rem;
   color: #fff;
   position: sticky;
   top: 0;
@@ -33,5 +33,5 @@
 }
 
 .navLinks a:hover {
-  color: #00d1b2;
+  color: #ff00ff;
 }
