@@ -1,7 +1,7 @@
 // /pages/api/generate-image.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const DEFAULT_MODEL = process.env.HF_IMAGE_MODEL || "black-forest-labs/FLUX.1-dev";
+const DEFAULT_MODEL = process.env.HF_IMAGE_MODEL || "stabilityai/sd-turbo";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const {
     prompt,
-    inputs,        // accept either key to be friendly
+    inputs,       
     model,
   } = (req.body ?? {}) as { prompt?: string; inputs?: string; model?: string };
 
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const selectedModel = model || DEFAULT_MODEL;
 
-  // Make the smallest, most-compatible payload. Many HF text->image models prefer just {inputs}
+
   const body = JSON.stringify({
     inputs: text,
     options: { wait_for_model: true, use_cache: true },

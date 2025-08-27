@@ -12,12 +12,14 @@ type MemoryItem = {
   imageUrl?: string;
 };
 
+
 const CaptureMemory = () => {
   const [memory, setMemory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [savedMemories, setSavedMemories] = useState<MemoryItem[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [keepText, setKeepText] = useState(true);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -56,64 +58,92 @@ const CaptureMemory = () => {
     let aiOutput = '';
     let imageUrl: string | undefined;
 
+    // Default image prompt fallback (in case parsing fails)
+    let imagePrompt = `An evocative, warm, cinematic illustration of this moment: ${memory}`;
+
+    // 1) Get keepsake + image prompt from text model first
     try {
-      const textReq = fetch('/api/generate', {
-        method: "POST",
+      const textRes = await fetch('/api/generate', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt:
-            `You are a gentle and poetic memory distiller. Given the user's moment below, produce a short keepsake with a title and 2–3 vivid sentences. Avoid repeating the text verbatim.\n\n` +
-            `Moment:\n${memory}`,
-          max_new_tokens: 160,
-          temperature: 0.7,
+            `You are a gentle and poetic memory distiller AND a prompt writer for text-to-image models.
+            Return ONLY a single JSON object with two keys: "keepsake" and "image_prompt".
+            - "keepsake": first line = short evocative TITLE (no prefix). Then 1–3 vivid poetic lines (≤280 chars total), each separated by \n.
+            - "image_prompt": concise visual prompt (≤220 chars) describing subject(s), setting, lighting, mood, + 3–6 style keywords.
+            Tone: gentle, sensory. No meta, no markdown, no extra fields.
+        
+        User moment:
+        ${memory}
+        `,
+          max_new_tokens: 1024,
+          temperature: 0.6,
         }),
       });
 
-      const imageReq = fetch('/api/generate-image', {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `An evocative, warm, cinematic illustration of this moment: ${memory}`,
-        }),
-      });
+      const gen = await textRes.json().catch(() => null);
 
-      // Wait for both to settle (so one failing doesn't block the other)
-      const [textRes, imageRes] = await Promise.allSettled([textReq, imageReq]);
-
-      // Text Result
-      if (textRes.status === 'fulfilled') {
-        const data = await textRes.value.json();
-        aiOutput = textRes.value.ok ? (data?.output?.trim?.() ?? '') : `(AI unavailable) ${data?.error ?? ''}`;
+      if (!textRes.ok || !gen) {
+        const msg = (gen && (gen.error || JSON.stringify(gen).slice(0, 200))) || 'Unknown error';
+        aiOutput = `(AI unavailable) ${msg}`;
       } else {
-        aiOutput = '(AI request failed. Saved your memory without AI.)';
-      }
+        // NEW: prefer server's shape { ok, keepsake, image_prompt }
+        let k = (gen?.keepsake ?? '').toString().trim();
+        let ip = (gen?.image_prompt ?? '').toString().trim();
 
-      // Image Result
-      if (imageRes.status === 'fulfilled') {
-        try {
-          if (!imageRes.value.ok) {
-            // Try to read server error to console
-            const errBody = await imageRes.value.json().catch(() => ({}));
-            console.error('Image generation failed:', errBody);
-          } else {
-            const img = await imageRes.value.json();
-            if (img?.imageUrl) {
-              imageUrl = img.imageUrl; // data URL ready to render
-            } else {
-              console.error('Image response missing imageUrl:', img);
+        // Backward-compat fallbacks if your server ever returns prose or {text}
+        if (!k && typeof gen?.text === 'string' && gen.text.trim()) {
+          try {
+            const parsed = JSON.parse(gen.text);
+            k = (parsed?.keepsake ?? '').toString().trim();
+            ip = (parsed?.image_prompt ?? '').toString().trim() || ip;
+          } catch {
+            // Try to extract first {...} if provider wrapped with prose
+            const s = gen.text;
+            const start = s.indexOf('{');
+            const end = s.lastIndexOf('}');
+            if (start !== -1 && end !== -1 && end > start) {
+              try {
+                const parsed = JSON.parse(s.slice(start, end + 1));
+                k = (parsed?.keepsake ?? '').toString().trim() || k;
+                ip = (parsed?.image_prompt ?? '').toString().trim() || ip;
+              } catch { }
             }
           }
-        } catch (parseErr) {
-          console.error('Failed to parse image response:', parseErr);
         }
-      } else {
-        console.error('Image request itself failed:', imageRes.reason);
+
+        aiOutput = k || '(AI returned empty content)';
+        if (ip) imagePrompt = ip;
       }
     } catch (err) {
-      console.error(err);
-      aiOutput ||= '(AI request failed. Saved your memory without AI.)';
+      aiOutput = '(AI request failed. Saved your memory without AI.)';
     }
 
+    // 2) Generate image using the enhanced imagePrompt
+    try {
+      const imageRes = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imagePrompt }),
+      });
+
+      if (imageRes.ok) {
+        const img = await imageRes.json();
+        if (img?.imageUrl) {
+          imageUrl = img.imageUrl;
+        } else {
+          console.error('Image response missing imageUrl:', img);
+        }
+      } else {
+        const errBody = await imageRes.json().catch(() => ({}));
+        console.error('Image generation failed:', errBody);
+      }
+    } catch (err) {
+      console.error('Image request failed:', err);
+    }
+
+    // 3) Save the memory (text + image)
     const newMemory: MemoryItem = {
       id: Date.now(),
       content: memory,
@@ -126,11 +156,12 @@ const CaptureMemory = () => {
     console.log('savedMemories (after save):', [newMemory, ...savedMemories]);
 
     setSavedMemories((prev) => [newMemory, ...prev]);
-    setMemory('');
+    if (!keepText) setMemory('');
     setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
   };
+
 
   const wordCount =
     memory.trim().length === 0
@@ -188,6 +219,15 @@ const CaptureMemory = () => {
                 'Create Memory'
               )}
             </button>
+
+            <label className={styles['keep-toggle']}>
+              <input
+                type="checkbox"
+                checked={keepText}
+                onChange={(e) => setKeepText(e.target.checked)}
+              />
+              Keep text after creating
+            </label>
           </div>
         </div>
 
