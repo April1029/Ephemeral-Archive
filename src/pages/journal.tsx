@@ -10,8 +10,15 @@ type MemoryItem = {
   timestamp: string;
   ai?: string;
   imageUrl?: string;
+  _imagePrompt?: string;
 };
 
+// shared helper so render + save use same rule
+function extractTitleFromKeepsake(ai?: string) {
+  if (!ai?.trim()) return 'Untitled';
+  const [first] = ai.trim().split(/\r?\n/);
+  return first.replace(/^(\s*title\s*[:\-]\s*)/i, '').trim() || 'Untitled';
+}
 
 const CaptureMemory = () => {
   const [memory, setMemory] = useState('');
@@ -20,6 +27,7 @@ const CaptureMemory = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [keepText, setKeepText] = useState(true);
+  const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -68,10 +76,10 @@ const CaptureMemory = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt:
-            `You are a gentle and poetic memory distiller AND a prompt writer for text-to-image models.
+            `You are a minimalist poet and visual prompt designer.
             Return ONLY a single JSON object with two keys: "keepsake" and "image_prompt".
-            - "keepsake": first line = short evocative TITLE (no prefix). Then 1–3 vivid poetic lines (≤280 chars total), each separated by \n.
-            - "image_prompt": concise visual prompt (≤220 chars) describing subject(s), setting, lighting, mood, + 3–6 style keywords.
+            - "keepsake": first line is a brief title. Then exactly 3 lines, each 4–7 words, imagistic and concrete; no rhyme, no clichés, present tense. Use crisp nouns, luminous verbs; show, don’t tell. Each separated by \n.
+            -  "image_prompt": one sentence capturing subject(s), setting, light, mood, plus 4–6 style tags (“dawn glow, quiet interior, soft grain, natural textures, shallow depth of field”).
             Tone: gentle, sensory. No meta, no markdown, no extra fields.
         
         User moment:
@@ -150,6 +158,7 @@ const CaptureMemory = () => {
       timestamp: new Date().toISOString(),
       ai: aiOutput,
       imageUrl,
+      _imagePrompt: imagePrompt,
     };
 
     console.log('AI output:', aiOutput);
@@ -160,6 +169,37 @@ const CaptureMemory = () => {
     setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  const handlePersist = async (mem: MemoryItem) => {
+    try {
+      setSavingIds(prev => new Set(prev).add(mem.id));
+      const res = await fetch('/api/memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: extractTitleFromKeepsake(mem.ai),
+          body: mem.content,
+          keepsake: mem.ai ?? null,
+          image_prompt: mem._imagePrompt ?? null,
+          image_url: mem.imageUrl ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to save');
+      }
+      alert('Saved to SQLite ✅');
+    } catch (e: any) {
+      console.error(e);
+      alert(`Save failed: ${e?.message || e}`);
+    } finally {
+      setSavingIds(prev => {
+        const next = new Set(prev);
+        next.delete(mem.id);
+        return next;
+      });
+    }
   };
 
 
@@ -277,6 +317,16 @@ const CaptureMemory = () => {
                         minute: '2-digit',
                       })}
                     </span>
+                    <button
+                      className={styles['save-button']}
+                      onClick={() => handlePersist(mem)}
+                      disabled={savingIds.has(mem.id)}
+                      title="Save this memory to your SQLite database"
+                    >
+                      {savingIds.has(mem.id) ? 'Saving…' : 'Save to SQLite'}
+                    </button>
+
+
                   </div>
                 </div>
               ))}

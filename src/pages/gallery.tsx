@@ -6,11 +6,23 @@ import Header from '../components/Header';
 
 type Memory = {
   id: number;
-  originalInput: string;
-  aiPoem: string;
-  aiImage: string;
-  timestamp: string; // ISO string
-  mood: string;
+  originalInput: string; // maps from DB: body
+  aiPoem: string;        // maps from DB: keepsake
+  aiImage: string;       // maps from DB: image_url
+  timestamp: string;     // maps from DB: created_at (ISO string)
+  mood: string;          // derived locally
+};
+
+// Shape returned by /api/memories (from your DB schema)
+type DbRow = {
+  id: number;
+  title: string;
+  body: string;
+  keepsake?: string | null;
+  image_prompt?: string | null;
+  image_url?: string | null;
+  created_at: string;   // ISO-ish string
+  updated_at: string;   // ISO-ish string
 };
 
 const MemoryGallery: React.FC = () => {
@@ -19,68 +31,74 @@ const MemoryGallery: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Sample memories with AI-generated content for demonstration
+  // very simple mood guesser (you can swap for something smarter later)
+  const deriveMood = (text: string): string => {
+    const t = text.toLowerCase();
+    if (/(laugh|giggle|joy|delight|smile)/.test(t)) return 'joyful';
+    if (/(quiet|calm|peace|still|dawn|sunrise|sunset)/.test(t)) return 'peaceful';
+    if (/(memory|remember|grandma|grandfather|old|yesterday)/.test(t)) return 'nostalgic';
+    if (/(first|baby|mama|wonder|awe|precious)/.test(t)) return 'precious';
+    if (/(euphoric|ecstatic|thrill)/.test(t)) return 'euphoric';
+    return 'default';
+  };
+
+  const transformRow = (row: DbRow): Memory => {
+    // Fallbacks to keep UI robust if some fields are missing
+    const originalInput = row.body ?? '';
+    const aiPoem = (row.keepsake ?? '').trim();
+    const aiImage = (row.image_url ?? '').trim();
+    const timestamp = row.created_at || new Date().toISOString();
+
+    return {
+      id: row.id,
+      originalInput,
+      aiPoem,
+      aiImage,
+      timestamp,
+      mood: deriveMood(`${originalInput}\n${aiPoem}`),
+    };
+  };
+
+  // Load from your library (SQLite via GET /api/memories) on first visit
   useEffect(() => {
-    const sampleMemories: Memory[] = [
-      {
-        id: 1,
-        originalInput:
-          "The way my grandmother's hands looked as she kneaded bread this morning. Flour dusted across her wedding ring, catching the early sunlight streaming through the kitchen window. Her humming—an old song I've never heard before but somehow know by heart. The kitchen smelled like yeast and memories.",
-        aiPoem: `Flour-blessed fingers dance and fold,\nWedding band worn smooth, stories untold.\nSunbeams paint the morning air,\nWhile ancient melodies linger there.\n\nYeast and time, both rising slow,\nIn hands that hold what hearts can know.\nThis kitchen holds a thousand days,\nIn grandmother's tender, kneading ways.`,
-        aiImage:
-          'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=600&fit=crop',
-        timestamp: new Date('2025-08-18T09:30:00').toISOString(),
-        mood: 'nostalgic',
-      },
-      {
-        id: 2,
-        originalInput:
-          'Standing in the rain with Sarah outside the coffee shop. We were both soaked, but laughing until our stomachs hurt about something completely ridiculous. The warmth of her friendship cutting through the cold. That moment when you realize some people are home.',
-        aiPoem: `Rain-soaked streets become our stage,\nLaughter echoes, age to age.\nCold drops fall but warmth remains,\nIn friendship's joy that breaks all chains.\n\nSome people are not where you go,\nBut who you are when storms blow.\nIn coffee shop light, truth rings clear:\nHome is found when love draws near.`,
-        aiImage:
-          'https://images.unsplash.com/photo-1515263487990-61b07816b924?w=800&h=600&fit=crop',
-        timestamp: new Date('2025-08-17T16:45:00').toISOString(),
-        mood: 'joyful',
-      },
-      {
-        id: 3,
-        originalInput:
-          "Emma said 'mama' for the first time while I was washing dishes. I turned around and she was reaching for me with this look of pure wonder, like she'd discovered magic. My heart stopped and started again. The dish I was holding slipped back into the soapy water.",
-        aiPoem: `"Mama" floats across the room,\nFirst word blooms, dispels all gloom.\nTiny hands reach for your face,\nWonder fills this sacred space.\n\nDishes wait, the world can pause,\nFor first words need no other cause.\nIn soapy water, plates may fall,\nBut love's first sound surpasses all.`,
-        aiImage:
-          'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&h=600&fit=crop',
-        timestamp: new Date('2025-08-16T19:20:00').toISOString(),
-        mood: 'precious',
-      },
-      {
-        id: 4,
-        originalInput:
-          "Sunrise from the park bench where Dad and I used to sit. The city was still sleeping, but the sky was painting itself in colors that don't have names. I could almost hear his voice telling me about the birds. The air tasted like possibility.",
-        aiPoem: `On this bench where memory dwells,\nDawn breaks with its morning spells.\nColors bleed across the sky,\nWhile sleeping cities dream and sigh.\n\nYour father's voice in birdsong lives,\nThe morning air, permission gives.\nTo taste what's yet to come to pass,\nIn moments meant forever last.`,
-        aiImage:
-          'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
-        timestamp: new Date('2025-08-15T06:15:00').toISOString(),
-        mood: 'peaceful',
-      },
-    ];
+    const ac = new AbortController();
 
-    const t = setTimeout(() => {
-      setMemories(sampleMemories);
-      setLoading(false);
-    }, 800);
+    (async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const res = await fetch('/api/memories', { signal: ac.signal });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || `Failed to load memories (${res.status})`);
+        }
+        const rows: DbRow[] = await res.json();
+        const mapped = (rows || []).map(transformRow);
+        setMemories(mapped);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          console.error(e);
+          setLoadError(e?.message || 'Failed to load memories');
+          setMemories([]); // ensure a clean empty state
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
 
-    return () => clearTimeout(t);
+    return () => ac.abort();
   }, []);
 
   const getMoodColor = (mood: string) => {
     const colors: Record<string, string> = {
-      nostalgic: '#f59e0b',
-      joyful: '#22c55e',
-      precious: '#ec4899',
-      peaceful: '#3b82f6',
-      euphoric: '#a855f7',
-      default: '#94a3b8',
+      nostalgic: '#d946ef', // bright magenta
+      joyful:   '#f472b6',  // soft pink-magenta
+      precious: '#ec4899',  // vivid pink
+      peaceful: '#c026d3',  // rich purple-magenta
+      euphoric: '#a21caf',  // deep magenta
+      default:  '#e879f9',  // pastel magenta fallback
     };
     return colors[mood] || colors.default;
   };
@@ -147,7 +165,7 @@ const MemoryGallery: React.FC = () => {
 
   return (
     <div className={styles['gallery-container']}>
-        <Header/>
+      <Header/>
       <div className={styles['gallery-header']}>
         <h1 className={styles['gallery-title']}>Memory Gallery</h1>
         <p className={styles['gallery-subtitle']}>
@@ -182,6 +200,35 @@ const MemoryGallery: React.FC = () => {
           {filteredAndSortedMemories.length} memories
         </div>
       </div>
+
+      {/* Error state (if load failed) */}
+      {loadError && (
+        <div className={styles['error-state']}>
+          <p className={styles['error-text']}>{loadError}</p>
+          <button
+            className={styles['retry-button']}
+            onClick={() => {
+              // quick manual retry without remount
+              setLoading(true);
+              setLoadError(null);
+              (async () => {
+                try {
+                  const res = await fetch('/api/memories');
+                  if (!res.ok) throw new Error(`Failed (${res.status})`);
+                  const rows: DbRow[] = await res.json();
+                  setMemories((rows || []).map(transformRow));
+                } catch (e: any) {
+                  setLoadError(e?.message || 'Failed to load memories');
+                } finally {
+                  setLoading(false);
+                }
+              })();
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Memory Grid */}
       <div className={styles['gallery-content']}>

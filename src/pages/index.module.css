@@ -82,7 +82,8 @@
 }
 
 /* CTA button */
-.cta-button {
+
+  .cta-button {
   padding: 1rem 2.5rem;
   font-size: 1.1rem;
   background: linear-gradient(45deg, #f662f6 0%, #764ba2 100%);

@@ -24,23 +24,24 @@ const HowItWorks = () => {
         {
             number: "01",
             title: "Capture Your Words",
-            description: "Type in your thoughts, feelings, or memories. Let the words flow naturally—capture what's in your heart right now.",
+            description: "Type in your thoughts, feelings, or memories. Let the words flow naturally, capture what's in your heart right now.",
             icon: "✍️",
             demo: "The afternoon light filters through...",
             color: "#ca00caff"
         },
         {
             number: "02",
-            title: "AI Creates Poetry & Art",
+            title: "Magic Happens Between Poetry & Art",
             description: "Our AI transforms your words into a unique poem and generates a complementary image that captures the essence of your moment.",
             icon: "✨",
             demo: "Golden threads of sunlight weave / Through memories we can't retrieve...",
             color: "#ff00ff"
         },
+        
         {
             number: "03",
             title: "Save to Memory",
-            description: "Your poem and image are preserved in your personal archive, creating a journal gallery of all the fleeting moment.",
+            description: "Continue the conversation until your feel the essence has been captured. Your poem and image are preserved in your personal archive, creating a journal gallery of all the fleeting moment.",
             icon: "💾",
             demo: "Memory preserved • Feb 14, 2025",
             color: "#ffb3ff"
@@ -120,9 +121,6 @@ const HowItWorks = () => {
                         >
                             Create Your First Memory
                         </button>
-                        {/* <Link href="/journal" className={styles["cta-button"]}>
-                            Create Your First Memory
-                        </Link> */}
                     </div>
                 </div>
 
