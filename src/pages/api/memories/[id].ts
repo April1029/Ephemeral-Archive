@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import db from "../../../lib/db";
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '4mb', // This line increases the limit to 4 megabytes.
+    },
+  },
+};
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const id = Number(req.query.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id." });

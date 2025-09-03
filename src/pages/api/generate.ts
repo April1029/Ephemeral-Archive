@@ -7,7 +7,6 @@ export const config = {
 
 const HF_URL = "https://router.huggingface.co/v1/chat/completions";
 
-// knobs
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
 

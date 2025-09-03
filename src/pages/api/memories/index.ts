@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import db from "../../../lib/db";
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '4mb', // This line increases the limit to 4 megabytes.
+    },
+  },
+};
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     const { q } = req.query;

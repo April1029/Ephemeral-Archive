@@ -115,6 +115,51 @@
   outline-offset: 2px;
 }
 
+.feedback-button {
+  padding: 0.75rem 2rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  border: none;
+  font-size: 1rem;
+}
+
+.feedback-button:hover:not(:disabled) {
+  cursor: pointer;
+  background: linear-gradient(to right, #ffb3ff, #ff00ff);
+  color: white;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+}
+
+.feedback-button:disabled {
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
+  color: #64748b;
+  box-shadow: none;
+}
+
+.feedback-area {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.feedback-label {
+  font-size: 0.85rem;
+  color: var(--muted-foreground, #666);
+}
+
+.feedback-textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
+  background: var(--card, #fff);
+}
+
 
 .save-button {
   padding: 0.75rem 2rem;

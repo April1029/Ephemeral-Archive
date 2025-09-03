@@ -28,6 +28,9 @@ const CaptureMemory = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [keepText, setKeepText] = useState(true);
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
+  const [regeneratingIds, setRegeneratingIds] = useState<Set<number>>(new Set());
+  const [feedbackById, setFeedbackById] = useState<Record<number, string>>({});
+
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -67,7 +70,8 @@ const CaptureMemory = () => {
     let imageUrl: string | undefined;
 
     // Default image prompt fallback (in case parsing fails)
-    let imagePrompt = `An evocative, warm, cinematic illustration of this moment: ${memory}`;
+    let imagePrompt = `Create a collage featuring the elements from ${memory}, incorporate the following artistic qualities: mixed-media collage, paper texture, torn edges, halftone, tape shadows, slight misregistration, and a matte finish. 
+    Add evocative subjects, setting, lighting, and mood`;
 
     // 1) Get keepsake + image prompt from text model first
     try {
@@ -76,17 +80,22 @@ const CaptureMemory = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt:
-            `You are a minimalist poet and visual prompt designer.
-            Return ONLY a single JSON object with two keys: "keepsake" and "image_prompt".
-            - "keepsake": first line is a brief title. Then exactly 3 lines, each 4–7 words, imagistic and concrete; no rhyme, no clichés, present tense. Use crisp nouns, luminous verbs; show, don’t tell. Each separated by \n.
-            -  "image_prompt": one sentence capturing subject(s), setting, light, mood, plus 4–6 style tags (“dawn glow, quiet interior, soft grain, natural textures, shallow depth of field”).
-            Tone: gentle, sensory. No meta, no markdown, no extra fields.
-        
-        User moment:
-        ${memory}
-        `,
+            `You are a minimalist poet and a visual prompt writer. You are a direct content generator. Do not use any tools or functions.
+            Return ONLY a single JSON object. The JSON should have two keys: "keepsake" and "image_prompt".
+            - "keepsake": A single string. You are a minimalist poet. Write a short, poignant poem about the user's memory. The poem must have a brief title as the first line, followed by exactly three lines of verse. Each verse line must be 4–7 words long, imagistic, and concrete. Focus on sensory details, crisp nouns, and luminous verbs. Use the present tense. Do not use rhyme, clichés, or abstract concepts. Use newline characters (\\n) to separate the title and each verse line.
+            - "image_prompt": A single string. You are a visual prompt writer for a mixed-media collage image. Write a detailed, evocative prompt for image generation that captures the mood and elements of the user's memory. The collage should feature 3–5 distinct fragments, subjects, and a setting. The prompt must include the following style keywords: mixed-media collage, paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.
+            Example of the exact JSON format to return:
+            {
+            "keepsake": "Title: Quiet Afternoon\\nPaper cranes rest on the sill\\nSunlight casts long shadows\\nSoft hum of the refrigerator",
+            "image_prompt": "mixed-media collage featuring paper cranes on a windowsill with sunlight casting long shadows; incorporate a serene mood and the feel of a soft hum; paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish"
+            }
+            Do NOT return any other text, explanations, or markdown outside of the JSON object. Do NOT wrap the JSON in markdown code blocks.
+
+            User moment:
+            ${memory}
+            `,
           max_new_tokens: 1024,
-          temperature: 0.6,
+          temperature: 0.9,
         }),
       });
 
@@ -169,6 +178,118 @@ const CaptureMemory = () => {
     setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  const handleRegenerateKeepsake = async (mem: MemoryItem, feedback: string) => {
+  setRegeneratingIds(prev => new Set(prev).add(mem.id));
+  try {
+    const textRes = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt:
+`You are a minimalist poet and a visual prompt writer. Return ONLY a single JSON object with keys "keepsake" and "image_prompt".
+- "keepsake": A single string. Minimalist poem with a short title line, then exactly 3 lines of 4–7 words, sensory, concrete, present tense. Use \\n to separate lines.
+- "image_prompt": A single string for a mixed-media collage with 3–5 fragments, subjects, and a setting. MUST include: mixed-media collage, paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.
+
+User moment:
+${mem.content}
+
+User feedback for regeneration (may be empty):
+${feedback}
+
+Example:
+{
+  "keepsake": "Title: Quiet Afternoon\\nPaper cranes rest on the sill\\nSunlight casts long shadows\\nSoft hum of the refrigerator",
+  "image_prompt": "mixed-media collage featuring paper cranes on a windowsill ... paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish"
+}
+Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
+        max_new_tokens: 1024,
+        temperature: 0.9,
+      }),
+    });
+
+    const gen = await textRes.json().catch(() => null);
+
+    // gracefully handle non-200 and weird shapes
+    if (!textRes.ok || !gen) {
+      console.error('Regenerate response not ok:', gen);
+      alert('Regeneration failed. The model did not respond properly.');
+      return;
+    }
+
+    // Prefer server shape { keepsake, image_prompt }, with fallbacks
+    let keepsake = (gen?.keepsake ?? '').toString().trim();
+    let image_prompt = (gen?.image_prompt ?? '').toString().trim();
+
+    if (!keepsake && typeof gen?.text === 'string' && gen.text.trim()) {
+      try {
+        const parsed = JSON.parse(gen.text);
+        keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
+        image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
+      } catch {
+        const s = gen.text;
+        const start = s.indexOf('{');
+        const end = s.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+          try {
+            const parsed = JSON.parse(s.slice(start, end + 1));
+            keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
+            image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
+          } catch {}
+        }
+      }
+    }
+
+    if (!keepsake) {
+      console.error('Model JSON missing keepsake/image_prompt:', gen);
+      alert('Model response was not valid JSON with "keepsake". Try again or tweak feedback.');
+      return;
+    }
+    // update keepsake; (optional) refresh stored prompt too
+    setSavedMemories(prev =>
+      prev.map(m =>
+        m.id === mem.id ? { ...m, ai: keepsake, _imagePrompt: image_prompt || m._imagePrompt } : m
+      )
+    );
+  } catch (err) {
+    console.error('Keepsake regeneration failed:', err);
+    alert('Regeneration crashed. Check console for details.');
+  } finally {
+    setRegeneratingIds(prev => {
+      const next = new Set(prev);
+      next.delete(mem.id);
+      return next;
+    });
+  }
+};
+
+
+  const handleRegenerateImage = async (mem: MemoryItem, feedback: string) => {
+    if (!mem._imagePrompt) return;
+    try {
+      setRegeneratingIds(prev => new Set(prev).add(mem.id));
+      const imageRes = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${mem._imagePrompt}\n\nUser feedback for regeneration: ${feedback}`, }),
+      });
+
+      if (imageRes.ok) {
+        const img = await imageRes.json();
+        if (img?.imageUrl) {
+          setSavedMemories(prev => prev.map(m => m.id === mem.id ? { ...m, imageUrl: img.imageUrl } : m));
+        }
+      }
+    } catch (err) {
+      console.error('Image regeneration failed:', err);
+    } finally {
+      setRegeneratingIds(prev => {
+        const next = new Set(prev);
+        next.delete(mem.id);
+        return next;
+      });
+    }
   };
 
   const handlePersist = async (mem: MemoryItem) => {
@@ -309,6 +430,7 @@ const CaptureMemory = () => {
                   )}
 
                   <div className={styles['memory-footer']}>
+
                     <span className={styles['memory-timestamp']}>
                       {new Date(mem.timestamp).toLocaleDateString('en-US', {
                         month: 'long',
@@ -317,6 +439,30 @@ const CaptureMemory = () => {
                         minute: '2-digit',
                       })}
                     </span>
+
+                    {mem.ai && (
+                      <button
+                        className={styles['feedback-button']}
+                        onClick={() => handleRegenerateKeepsake(mem, feedbackById[mem.id] ?? '')}
+                        disabled={regeneratingIds.has(mem.id)}
+                        title="Optionally type feedback below, then click to regenerate keepsake"
+                      >
+                        {regeneratingIds.has(mem.id) ? 'Regenerating…' : 'Regenerate Keepsake'}
+                      </button>
+                    )}
+
+                    {mem.imageUrl && (
+                      <button
+                        className={styles['feedback-button']}
+                        onClick={() => handleRegenerateImage(mem, feedbackById[mem.id] ?? '')}
+                        disabled={regeneratingIds.has(mem.id)}
+                        title="Optionally type feedback below, then click to regenerate image"
+                      >
+                        {regeneratingIds.has(mem.id) ? 'Regenerating…' : 'Regenerate Image'}
+                      </button>
+                    )}
+
+
                     <button
                       className={styles['save-button']}
                       onClick={() => handlePersist(mem)}
@@ -326,8 +472,24 @@ const CaptureMemory = () => {
                       {savingIds.has(mem.id) ? 'Saving…' : 'Save to SQLite'}
                     </button>
 
-
                   </div>
+                  <div className={styles['feedback-area']}>
+                    <label className={styles['feedback-label']} htmlFor={`fb-${mem.id}`}>
+                      (Optional) Feedback for regeneration
+                    </label>
+                    <textarea
+                      id={`fb-${mem.id}`}
+                      className={styles['feedback-textarea']}
+                      placeholder="e.g., make the tone warmer; emphasize the sunlight; fewer torn edges; add a cat silhouette…"
+                      value={feedbackById[mem.id] ?? ''}
+                      onChange={(e) =>
+                        setFeedbackById((prev) => ({ ...prev, [mem.id]: e.target.value }))
+                      }
+                      disabled={regeneratingIds.has(mem.id)}
+                      rows={3}
+                    />
+                  </div>
+
                 </div>
               ))}
             </div>
