@@ -1,4 +1,4 @@
-// /pages/api/generate-image.ts
+export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const DEFAULT_MODEL = process.env.HF_IMAGE_MODEL || "stabilityai/sd-turbo";

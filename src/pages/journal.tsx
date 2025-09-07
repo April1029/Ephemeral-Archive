@@ -1,9 +1,10 @@
 'use client';
+export const runtime = "nodejs";
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './journal.module.css';
 import Header from '../components/Header';
 
-export const runtime = "nodejs";
+
 
 type MemoryItem = {
   id: number;

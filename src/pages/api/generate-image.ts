@@ -1,6 +1,7 @@
-// pages/api/generate-image.ts
+export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+
 
 const MODEL = 'gemini-2.5-flash-image-preview';
 

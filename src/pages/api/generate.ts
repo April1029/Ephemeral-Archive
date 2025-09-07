@@ -1,9 +1,10 @@
-// pages/api/generate.ts
+export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 export const config = {
     api: { bodyParser: { sizeLimit: "2mb" } }, // in case prompts are long
 };
+
 
 const HF_URL = "https://router.huggingface.co/v1/chat/completions";
 

@@ -1,10 +1,10 @@
 'use client';
-
+export const runtime = "nodejs";
 import React, { useEffect, useMemo, useState } from 'react';
 import styles from './gallery.module.css';
 import Header from '../components/Header';
 
-export const runtime = "nodejs";
+
 type Memory = {
   id: number;
   originalInput: string; // maps from DB: body
