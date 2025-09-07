@@ -146,7 +146,7 @@
 
 .feedback-label {
   font-size: 0.85rem;
-  color: var(--muted-foreground, #666);
+  color: #64748b;
 }
 
 .feedback-textarea {
@@ -285,6 +285,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 1rem;
 }
 
 .memory-timestamp {

@@ -181,14 +181,14 @@ const CaptureMemory = () => {
   };
 
   const handleRegenerateKeepsake = async (mem: MemoryItem, feedback: string) => {
-  setRegeneratingIds(prev => new Set(prev).add(mem.id));
-  try {
-    const textRes = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt:
-`You are a minimalist poet and a visual prompt writer. Return ONLY a single JSON object with keys "keepsake" and "image_prompt".
+    setRegeneratingIds(prev => new Set(prev).add(mem.id));
+    try {
+      const textRes = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt:
+            `You are a minimalist poet and a visual prompt writer. Return ONLY a single JSON object with keys "keepsake" and "image_prompt".
 - "keepsake": A single string. Minimalist poem with a short title line, then exactly 3 lines of 4–7 words, sensory, concrete, present tense. Use \\n to separate lines.
 - "image_prompt": A single string for a mixed-media collage with 3–5 fragments, subjects, and a setting. MUST include: mixed-media collage, paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.
 
@@ -204,66 +204,65 @@ Example:
   "image_prompt": "mixed-media collage featuring paper cranes on a windowsill ... paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish"
 }
 Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
-        max_new_tokens: 1024,
-        temperature: 0.9,
-      }),
-    });
+          max_new_tokens: 1024,
+          temperature: 0.9,
+        }),
+      });
 
-    const gen = await textRes.json().catch(() => null);
+      const gen = await textRes.json().catch(() => null);
 
-    // gracefully handle non-200 and weird shapes
-    if (!textRes.ok || !gen) {
-      console.error('Regenerate response not ok:', gen);
-      alert('Regeneration failed. The model did not respond properly.');
-      return;
-    }
+      // gracefully handle non-200 and weird shapes
+      if (!textRes.ok || !gen) {
+        console.error('Regenerate response not ok:', gen);
+        alert('Regeneration failed. The model did not respond properly.');
+        return;
+      }
 
-    // Prefer server shape { keepsake, image_prompt }, with fallbacks
-    let keepsake = (gen?.keepsake ?? '').toString().trim();
-    let image_prompt = (gen?.image_prompt ?? '').toString().trim();
+      // Prefer server shape { keepsake, image_prompt }, with fallbacks
+      let keepsake = (gen?.keepsake ?? '').toString().trim();
+      let image_prompt = (gen?.image_prompt ?? '').toString().trim();
 
-    if (!keepsake && typeof gen?.text === 'string' && gen.text.trim()) {
-      try {
-        const parsed = JSON.parse(gen.text);
-        keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
-        image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
-      } catch {
-        const s = gen.text;
-        const start = s.indexOf('{');
-        const end = s.lastIndexOf('}');
-        if (start !== -1 && end !== -1 && end > start) {
-          try {
-            const parsed = JSON.parse(s.slice(start, end + 1));
-            keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
-            image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
-          } catch {}
+      if (!keepsake && typeof gen?.text === 'string' && gen.text.trim()) {
+        try {
+          const parsed = JSON.parse(gen.text);
+          keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
+          image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
+        } catch {
+          const s = gen.text;
+          const start = s.indexOf('{');
+          const end = s.lastIndexOf('}');
+          if (start !== -1 && end !== -1 && end > start) {
+            try {
+              const parsed = JSON.parse(s.slice(start, end + 1));
+              keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
+              image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
+            } catch { }
+          }
         }
       }
-    }
 
-    if (!keepsake) {
-      console.error('Model JSON missing keepsake/image_prompt:', gen);
-      alert('Model response was not valid JSON with "keepsake". Try again or tweak feedback.');
-      return;
+      if (!keepsake) {
+        console.error('Model JSON missing keepsake/image_prompt:', gen);
+        alert('Model response was not valid JSON with "keepsake". Try again or tweak feedback.');
+        return;
+      }
+      // update keepsake; (optional) refresh stored prompt too
+      setSavedMemories(prev =>
+        prev.map(m =>
+          m.id === mem.id ? { ...m, ai: keepsake, _imagePrompt: image_prompt || m._imagePrompt } : m
+        )
+      );
+    } catch (err) {
+      console.error('Keepsake regeneration failed:', err);
+      alert('Regeneration crashed. Check console for details.');
+    } finally {
+      setRegeneratingIds(prev => {
+        const next = new Set(prev);
+        next.delete(mem.id);
+        return next;
+      });
     }
-    // update keepsake; (optional) refresh stored prompt too
-    setSavedMemories(prev =>
-      prev.map(m =>
-        m.id === mem.id ? { ...m, ai: keepsake, _imagePrompt: image_prompt || m._imagePrompt } : m
-      )
-    );
-  } catch (err) {
-    console.error('Keepsake regeneration failed:', err);
-    alert('Regeneration crashed. Check console for details.');
-  } finally {
-    setRegeneratingIds(prev => {
-      const next = new Set(prev);
-      next.delete(mem.id);
-      return next;
-    });
-  }
-};
-
+  };
 
   const handleRegenerateImage = async (mem: MemoryItem, feedback: string) => {
     if (!mem._imagePrompt) return;
@@ -310,7 +309,7 @@ Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Failed to save');
       }
-      alert('Saved to SQLite ✅');
+      alert('Saved to Gallery ✅');
     } catch (e: any) {
       console.error(e);
       alert(`Save failed: ${e?.message || e}`);
@@ -469,7 +468,7 @@ Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
                       disabled={savingIds.has(mem.id)}
                       title="Save this memory to your SQLite database"
                     >
-                      {savingIds.has(mem.id) ? 'Saving…' : 'Save to SQLite'}
+                      {savingIds.has(mem.id) ? 'Saving…' : 'Save to Gallery'}
                     </button>
 
                   </div>
@@ -480,7 +479,8 @@ Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
                     <textarea
                       id={`fb-${mem.id}`}
                       className={styles['feedback-textarea']}
-                      placeholder="e.g., make the tone warmer; emphasize the sunlight; fewer torn edges; add a cat silhouette…"
+                      placeholder={`e.g., make the tone warmer; emphasize the sunlight; fewer torn edges...
+You could continue without text input, simply try regeneration : )`}
                       value={feedbackById[mem.id] ?? ''}
                       onChange={(e) =>
                         setFeedbackById((prev) => ({ ...prev, [mem.id]: e.target.value }))

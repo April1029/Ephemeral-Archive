@@ -3,8 +3,7 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/journal": "pages/journal.js",
-  "/api/generate": "pages/api/generate.js",
-  "/gallery": "pages/gallery.js",
+  "/": "pages/index.js",
   "/api/memories": "pages/api/memories.js",
-  "/api/generate-image": "pages/api/generate-image.js"
+  "/gallery": "pages/gallery.js"
 }
