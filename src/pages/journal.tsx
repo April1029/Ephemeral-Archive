@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import styles from './journal.module.css';
 import Header from '../components/Header';
 
+export const runtime = "nodejs";
 
 type MemoryItem = {
   id: number;
@@ -47,7 +48,7 @@ const CaptureMemory = () => {
     return (
       <div className={styles['ai-content']}>
         <div className={styles['ai-header']}>
-          <strong>AI Keepsake</strong>
+          <strong>Ephemeral Lines</strong>
         </div>
         {title && <h4 className={styles['ai-title']}>{title}</h4>}
         {body ? (
@@ -103,7 +104,7 @@ const CaptureMemory = () => {
 
       if (!textRes.ok || !gen) {
         const msg = (gen && (gen.error || JSON.stringify(gen).slice(0, 200))) || 'Unknown error';
-        aiOutput = `(AI unavailable) ${msg}`;
+        aiOutput = `(Service unavailable) ${msg}`;
       } else {
         // NEW: prefer server's shape { ok, keepsake, image_prompt }
         let k = (gen?.keepsake ?? '').toString().trim();
@@ -134,7 +135,7 @@ const CaptureMemory = () => {
         if (ip) imagePrompt = ip;
       }
     } catch (err) {
-      aiOutput = '(AI request failed. Saved your memory without AI.)';
+      aiOutput = '(Service request failed. Saved your original memory input.)';
     }
 
     // 2) Generate image using the enhanced imagePrompt

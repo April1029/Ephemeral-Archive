@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styles from './gallery.module.css';
 import Header from '../components/Header';
 
+export const runtime = "nodejs";
 type Memory = {
   id: number;
   originalInput: string; // maps from DB: body
@@ -13,7 +14,7 @@ type Memory = {
   mood: string;          // derived locally
 };
 
-// Shape returned by /api/memories (from your DB schema)
+// Shape returned by /api/memories (from DB schema)
 type DbRow = {
   id: number;
   title: string;
@@ -32,8 +33,9 @@ const MemoryGallery: React.FC = () => {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [imageViewer, setImageViewer] = useState<{ url: string; alt?: string } | null>(null);
 
-  // very simple mood guesser (you can swap for something smarter later)
+  // very simple mood guesser
   const deriveMood = (text: string): string => {
     const t = text.toLowerCase();
     if (/(laugh|giggle|joy|delight|smile)/.test(t)) return 'joyful';
@@ -91,14 +93,25 @@ const MemoryGallery: React.FC = () => {
     return () => ac.abort();
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setImageViewer(null);
+        setSelectedMemory(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const getMoodColor = (mood: string) => {
     const colors: Record<string, string> = {
       nostalgic: '#d946ef', // bright magenta
-      joyful:   '#f472b6',  // soft pink-magenta
+      joyful: '#f472b6',  // soft pink-magenta
       precious: '#ec4899',  // vivid pink
       peaceful: '#c026d3',  // rich purple-magenta
       euphoric: '#a21caf',  // deep magenta
-      default:  '#e879f9',  // pastel magenta fallback
+      default: '#e879f9',  // pastel magenta fallback
     };
     return colors[mood] || colors.default;
   };
@@ -107,10 +120,10 @@ const MemoryGallery: React.FC = () => {
     const term = searchTerm.trim().toLowerCase();
     const filtered = term
       ? memories.filter(
-          (m) =>
-            m.originalInput.toLowerCase().includes(term) ||
-            m.aiPoem.toLowerCase().includes(term)
-        )
+        (m) =>
+          m.originalInput.toLowerCase().includes(term) ||
+          m.aiPoem.toLowerCase().includes(term)
+      )
       : memories.slice();
 
     filtered.sort((a, b) => {
@@ -165,7 +178,7 @@ const MemoryGallery: React.FC = () => {
 
   return (
     <div className={styles['gallery-container']}>
-      <Header/>
+      <Header />
       <div className={styles['gallery-header']}>
         <h1 className={styles['gallery-title']}>Memory Gallery</h1>
         <p className={styles['gallery-subtitle']}>
@@ -266,8 +279,21 @@ const MemoryGallery: React.FC = () => {
                   style={{
                     backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${memory.aiImage})`,
                   }}
+                  role="button"
+                  aria-label="Open image full screen"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (memory.aiImage) setImageViewer({ url: memory.aiImage, alt: 'AI generated memory sketch' });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === '') {
+                      e.stopPropagation();
+                      if (memory.aiImage) setImageViewer({ url: memory.aiImage, alt: 'AI generated memory sketch' });
+                    }
+                  }}
                 >
-                  <div className={styles['image-label']}>AI Generated</div>
+                  <div className={styles['image-label']}>Memory Sketch</div>
                 </div>
 
                 {/* Content */}
@@ -280,7 +306,7 @@ const MemoryGallery: React.FC = () => {
 
                   {/* AI Poem Preview */}
                   <div className={styles['content-section']}>
-                    <h4 className={styles['content-label']}>AI Poetry</h4>
+                    <h4 className={styles['content-label']}>Ephemeral Lines</h4>
                     <p className={styles['poem-text']}>{memory.aiPoem}</p>
                   </div>
 
@@ -319,12 +345,35 @@ const MemoryGallery: React.FC = () => {
 
             {/* Full AI Image */}
             <div
-              className={styles['modal-image']}
+              className={`${styles['modal-image']} ${styles['modal-image--clickable']}`}
               style={{
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.4)), url(${selectedMemory.aiImage})`,
               }}
+              role="button"
+              tabIndex={0}
+              area-lable="Open image full screen"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (selectedMemory.aiImage) {
+                  setImageViewer({
+                    url: selectedMemory.aiImage,
+                    alt: 'AI generated memory sketch',
+                  });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  if (selectedMemory.aiImage) {
+                    setImageViewer({
+                      url: selectedMemory.aiImage,
+                      alt: 'AI generated memory sketch',
+                    });
+                  }
+                }
+              }}
             >
-              <div className={styles['modal-image-label']}>AI Generated Visual</div>
+              <div className={styles['modal-image-label']}>Memory Sketch • Click to expand</div>
             </div>
 
             {/* Content */}
@@ -348,7 +397,7 @@ const MemoryGallery: React.FC = () => {
                   className={styles['modal-section-title']}
                   style={{ color: getMoodColor(selectedMemory.mood) }}
                 >
-                  AI Poetry
+                  Ephemeral Lines
                 </h3>
                 <div className={styles['modal-poem-text']}>
                   {selectedMemory.aiPoem}
@@ -363,6 +412,36 @@ const MemoryGallery: React.FC = () => {
           </div>
         </div>
       )}
+
+      {imageViewer && (
+        <div
+          className={styles['image-viewer-overlay']}
+          onClick={() => setImageViewer(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className={styles['image-viewer-content']}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className={styles['image-viewer-close']}
+              aria-label="Close image viewer"
+              onClick={() => setImageViewer(null)}
+            >
+              ×
+            </button>
+
+            <img
+              className={styles['image-viewer-img']}
+              src={imageViewer.url}
+              alt={imageViewer.alt || 'AI generated memory sketch'}
+            />
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 };

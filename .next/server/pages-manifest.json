@@ -4,6 +4,5 @@
   "/_document": "pages/_document.js",
   "/journal": "pages/journal.js",
   "/": "pages/index.js",
-  "/api/memories": "pages/api/memories.js",
   "/gallery": "pages/gallery.js"
 }

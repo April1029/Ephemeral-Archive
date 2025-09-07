@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: now-and-ever
+    env: node
+    plan: starter
+    buildCommand: "npm ci && npm run build"
+    startCommand: "npm run start"
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SQLITE_PATH
+        value: "/var/data/nowever.sqlite"
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
