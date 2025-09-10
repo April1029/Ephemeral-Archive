@@ -30,7 +30,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         SELECT id, title, body, keepsake, image_prompt, image_url, created_at, updated_at
         FROM memories
         ORDER BY created_at DESC
-        LIMIT 10
+        LIMIT 15
       `)
       .all();
     return res.status(200).json(rows);
