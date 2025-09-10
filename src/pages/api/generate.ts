@@ -7,9 +7,10 @@ export const config = {
 
 
 const HF_URL = "https://router.huggingface.co/v1/chat/completions";
-
+const HF_MODEL = process.env.HF_MODEL || "openai/gpt-oss-20b:fireworks-ai";
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
+
 
 function isTransient(err: unknown) {
     const msg = String((err as any)?.message || err || "");
@@ -56,7 +57,7 @@ async function callHF({
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            model: "openai/gpt-oss-20b",
+            model: HF_MODEL,
             messages: [{ role: "user", content: prompt }],
             // keep payload small; streaming off to avoid mid-stream truncation
             max_tokens: max_new_tokens,

@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/": "pages/index.js",
-  "/journal": "pages/journal.js",
-  "/gallery": "pages/gallery.js"
+  "/api/generate": "pages/api/generate.js",
+  "/api/generate-image": "pages/api/generate-image.js",
+  "/journal": "pages/journal.js"
 }
