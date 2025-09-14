@@ -2,7 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/api/generate": "pages/api/generate.js",
-  "/api/generate-image": "pages/api/generate-image.js",
-  "/journal": "pages/journal.js"
+  "/": "pages/index.js",
+  "/api/memories": "pages/api/memories.js",
+  "/journal": "pages/journal.js",
+  "/gallery": "pages/gallery.js"
 }
