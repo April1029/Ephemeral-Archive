@@ -1,4 +1,4 @@
-import { createClient, type ResultSet } from "@libsql/client";
+import { createClient, type ResultSet } from "@libsql/client/http";
 
 const url = process.env.TURSO_DATABASE_URL ?? "file:./data/nowever.sqlite";
 const authToken = process.env.TURSO_AUTH_TOKEN;
