@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracingExcludes: {
-    '*': [
-      'node_modules/@libsql/**',
-      'node_modules/@aws-sdk/**',
-    ],
-  },
+  serverExternalPackages: ['@libsql/client', '@aws-sdk/client-s3'],
 };
 
 module.exports = nextConfig;
