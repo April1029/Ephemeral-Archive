@@ -1,34 +1,34 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenAI } from '@google/genai';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { AwsClient } from 'aws4fetch';
 import { promises as fs } from 'fs';
 import path from 'path';
 
 const MODEL = 'gemini-2.5-flash-image';
 
-function getR2Client() {
-  return new S3Client({
-    region: 'auto',
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
-  });
-}
-
 async function saveImage(filename: string, data: Buffer, mime: string): Promise<string> {
   // R2 path (production)
   if (process.env.R2_ACCOUNT_ID) {
-    const r2 = getR2Client();
-    await r2.send(new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: filename,
-      Body: data,
-      ContentType: mime,
-      CacheControl: 'public, max-age=31536000, immutable',
-    }));
+    const r2 = new AwsClient({
+      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      region: 'auto',
+      service: 's3',
+    });
+    const url = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${filename}`;
+    const uploadRes = await r2.fetch(url, {
+      method: 'PUT',
+      body: data,
+      headers: {
+        'Content-Type': mime,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    });
+    if (!uploadRes.ok) {
+      const text = await uploadRes.text().catch(() => '');
+      throw new Error(`R2 upload failed (${uploadRes.status}): ${text}`);
+    }
     return `${process.env.R2_PUBLIC_URL}/${filename}`;
   }
 

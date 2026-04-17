@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { db, ensureMigrated, toRow } from "../../../lib/db";
+import { execute, ensureMigrated } from "../../../lib/db";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   await ensureMigrated();
@@ -9,56 +9,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id." });
 
   if (req.method === "GET") {
-    const result = await db.execute({
-      sql: "SELECT * FROM memories WHERE id = ?",
-      args: [id],
-    });
-    const row = toRow(result);
-    if (!row) return res.status(404).json({ error: "Not found." });
-    return res.status(200).json(row);
+    const result = await execute("SELECT * FROM memories WHERE id = ?", [id]);
+    if (!result.rows[0]) return res.status(404).json({ error: "Not found." });
+    return res.status(200).json(result.rows[0]);
   }
 
   if (req.method === "PUT") {
     try {
       const { title, body, keepsake, image_prompt, image_url } = req.body || {};
 
-      const update = await db.execute({
-        sql: `UPDATE memories
-              SET
-                title       = COALESCE(?, title),
-                body        = COALESCE(?, body),
-                keepsake    = COALESCE(?, keepsake),
-                image_prompt = COALESCE(?, image_prompt),
-                image_url   = COALESCE(?, image_url),
-                updated_at  = datetime('now')
-              WHERE id = ?`,
-        args: [
-          title ?? null,
-          body ?? null,
-          keepsake ?? null,
-          image_prompt ?? null,
-          image_url ?? null,
-          id,
-        ],
-      });
+      const update = await execute(
+        `UPDATE memories
+         SET title        = COALESCE(?, title),
+             body         = COALESCE(?, body),
+             keepsake     = COALESCE(?, keepsake),
+             image_prompt = COALESCE(?, image_prompt),
+             image_url    = COALESCE(?, image_url),
+             updated_at   = datetime('now')
+         WHERE id = ?`,
+        [title ?? null, body ?? null, keepsake ?? null, image_prompt ?? null, image_url ?? null, id]
+      );
 
       if (update.rowsAffected === 0) return res.status(404).json({ error: "not found" });
 
-      const result = await db.execute({
-        sql: "SELECT * FROM memories WHERE id = ?",
-        args: [id],
-      });
-      return res.status(200).json(toRow(result));
+      const result = await execute("SELECT * FROM memories WHERE id = ?", [id]);
+      return res.status(200).json(result.rows[0]);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
   }
 
   if (req.method === "DELETE") {
-    const result = await db.execute({
-      sql: "DELETE FROM memories WHERE id = ?",
-      args: [id],
-    });
+    const result = await execute("DELETE FROM memories WHERE id = ?", [id]);
     if (result.rowsAffected === 0) return res.status(404).json({ error: "not found" });
     return res.status(204).end();
   }
