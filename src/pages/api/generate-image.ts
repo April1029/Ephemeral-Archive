@@ -19,7 +19,7 @@ async function saveImage(filename: string, data: Buffer, mime: string): Promise<
     const url = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${filename}`;
     const uploadRes = await r2.fetch(url, {
       method: 'PUT',
-      body: data,
+      body: new Uint8Array(data),
       headers: {
         'Content-Type': mime,
         'Cache-Control': 'public, max-age=31536000, immutable',
