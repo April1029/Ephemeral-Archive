@@ -1,39 +1,38 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
-import db from "../../../lib/db";
+import { db, ensureMigrated, toRow, toRows } from "../../../lib/db";
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '4mb', // This line increases the limit to 4 megabytes.
-    },
-  },
-};
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await ensureMigrated();
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     const { q } = req.query;
+
     if (typeof q === "string" && q.trim()) {
-      const stmt = db.prepare(`
-        SELECT id, title, body, keepsake, image_prompt, image_url, created_at, updated_at
-        FROM memories
-        WHERE title LIKE ? OR body LIKE ? OR keepsake LIKE ?
-        ORDER BY created_at DESC
-        LIMIT 200
-      `);
-      const rows = stmt.all(`%${q}%`, `%${q}%`, `%${q}%`);
-      return res.status(200).json(rows);
+      const result = await db.execute({
+        sql: `SELECT id, title, body, keepsake, image_url, created_at, updated_at
+              FROM memories
+              WHERE title LIKE ? OR body LIKE ? OR keepsake LIKE ?
+              ORDER BY created_at DESC
+              LIMIT 200`,
+        args: [`%${q}%`, `%${q}%`, `%${q}%`],
+      });
+      return res.status(200).json(toRows(result));
     }
 
-    const rows = db
-      .prepare(`
-        SELECT id, title, body, keepsake, image_prompt, image_url, created_at, updated_at
-        FROM memories
-        ORDER BY created_at DESC
-        LIMIT 20
-      `)
-      .all();
-    return res.status(200).json(rows);
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? "20"), 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+
+    const result = await db.execute({
+      sql: `SELECT id, title, body, keepsake, image_url, created_at, updated_at
+            FROM memories
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?`,
+      args: [limit, offset],
+    });
+
+    res.setHeader("Cache-Control", "public, max-age=15, stale-while-revalidate=60");
+    return res.status(200).json(toRows(result));
   }
 
   if (req.method === "POST") {
@@ -41,17 +40,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       const { title, body, keepsake, image_prompt, image_url } = req.body || {};
       if (!title || !body) return res.status(400).json({ error: "title and body are required" });
 
-      const stmt = db.prepare(`
-        INSERT INTO memories (title, body, keepsake, image_prompt, image_url)
-        VALUES (@title, @body, @keepsake, @image_prompt, @image_url)
-      `);
-      const info = stmt.run({ title, body, keepsake, image_prompt, image_url });
+      const insert = await db.execute({
+        sql: `INSERT INTO memories (title, body, keepsake, image_prompt, image_url)
+              VALUES (?, ?, ?, ?, ?)`,
+        args: [title, body, keepsake ?? null, image_prompt ?? null, image_url ?? null],
+      });
 
-      const row = db
-        .prepare(`SELECT * FROM memories WHERE id = ?`)
-        .get(info.lastInsertRowid);
+      const row = await db.execute({
+        sql: "SELECT * FROM memories WHERE id = ?",
+        args: [Number(insert.lastInsertRowid)],
+      });
 
-      return res.status(201).json(row);
+      return res.status(201).json(toRow(row));
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }

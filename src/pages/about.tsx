@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import Link from "next/link";
-// Reuse the same styles so you don't duplicate CSS
-import styles from "./index.module.css";
+import styles from "./about.module.css";
 import Header from "../components/Header";
 
-export default function Process() {
+export default function About() {
   useEffect(() => {
     // Intersection observer reveal animations for cards/sections
     const animateTargetsSelector = `.${styles["moment-card"]}, .${styles["feature-card"]}, .${styles.section}, .${styles.testimonial}, .${styles["final-cta"]}`;

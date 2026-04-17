@@ -1,160 +1,111 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { GoogleGenAI } from "@google/genai";
 
 export const config = {
-    api: { bodyParser: { sizeLimit: "2mb" } }, // in case prompts are long
+  api: { bodyParser: { sizeLimit: "2mb" } },
 };
 
-
-const HF_URL = "https://router.huggingface.co/v1/chat/completions";
-const HF_MODEL = process.env.HF_MODEL || "openai/gpt-oss-20b:fireworks-ai";
-const REQUEST_TIMEOUT_MS = 60_000;
+const MODEL = "gemini-2.5-flash";
 const MAX_RETRIES = 3;
 
-
-function isTransient(err: unknown) {
-    const msg = String((err as any)?.message || err || "");
-    return /(?:^Upstream 5\d\d:|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|timeout|502|503|504)/i.test(msg);
+function buildPrompt(memory: string, feedback?: string): string {
+  return [
+    'Output ONLY a JSON object with exactly two keys: "keepsake" and "image_prompt". No prose, no markdown fences.',
+    "",
+    '"keepsake": a single string with lines joined by \\n.',
+    '  Line 1 — starts with "Title: " followed by a short concrete title.',
+    "  Lines 2–4 — exactly 3 verse lines, each 4–7 words, sensory, present tense.",
+    "",
+    '"image_prompt": a single string (~60–80 words) describing a mixed-media collage',
+    "  with 3–5 distinct fragments and a setting. Include: mixed-media collage,",
+    "  paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.",
+    "",
+    feedback?.trim() ? `Feedback on previous attempt: ${feedback.trim()}` : "",
+    `Memory: ${memory.trim()}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-// Find & parse the first {...} JSON object inside a string
-function extractFirstJsonObject(s: string) {
-    const start = s.indexOf("{");
-    const end = s.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) throw new Error("No JSON object found");
-    return JSON.parse(s.slice(start, end + 1));
-}
+async function generate(
+  memory: string,
+  feedback?: string
+): Promise<{ keepsake: string; image_prompt: string }> {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  let lastFeedback = feedback;
 
-async function withRetries<T>(fn: () => Promise<T>, attempts = MAX_RETRIES): Promise<T> {
-    let lastErr: unknown;
-    for (let i = 0; i < attempts; i++) {
-        try {
-            return await fn();
-        } catch (e) {
-            lastErr = e;
-            if (i === attempts - 1 || !isTransient(e)) break;
-            await new Promise(r => setTimeout(r, 500 * (i + 1))); // 0.5s, 1s, 1.5s
-        }
-    }
-    throw lastErr;
-}
-
-async function callHF({
-    prompt,
-    max_new_tokens = 1024,
-    temperature = 0.6,
-    signal,
-}: {
-    prompt: string;
-    max_new_tokens?: number;
-    temperature?: number;
-    signal?: AbortSignal;
-}) {
-    const hfRes = await fetch(HF_URL, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.HF_TOKEN ?? ""}`,
-            "Content-Type": "application/json",
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: [{ role: "user", parts: [{ text: buildPrompt(memory, lastFeedback) }] }],
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.7,
+          maxOutputTokens: 1024,
         },
-        body: JSON.stringify({
-            model: HF_MODEL,
-            messages: [{ role: "user", content: prompt }],
-            // keep payload small; streaming off to avoid mid-stream truncation
-            max_tokens: max_new_tokens,
-            temperature,
-            stream: false,
-            tool_choice: "none",
-            response_format: { type: "json_object" }
-        }),
-        signal,
-    });
+      });
 
-    const raw = await hfRes.text();
+      const text = (response.text ?? "").trim();
+      if (!text) throw new Error("Empty response from model");
 
-    // Keep a tiny tail for debugging truncation; shows in server logs
-    console.info("HF upstream", {
-        status: hfRes.status,
-        te: hfRes.headers.get("transfer-encoding"),
-        clen: hfRes.headers.get("content-length"),
-        tail: raw.slice(-160),
-    });
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        const start = text.indexOf("{");
+        const end = text.lastIndexOf("}");
+        if (start !== -1 && end > start) {
+          parsed = JSON.parse(text.slice(start, end + 1));
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      }
 
-    if (!hfRes.ok) {
-        throw new Error(`Upstream ${hfRes.status}: ${raw.slice(0, 600)}`);
+      const keepsake = (parsed?.keepsake ?? "").toString().trim();
+      const image_prompt = (parsed?.image_prompt ?? "").toString().trim();
+
+      if (!keepsake || !image_prompt) {
+        lastFeedback = 'Response was missing "keepsake" or "image_prompt". Return both keys.';
+        continue;
+      }
+
+      return { keepsake, image_prompt };
+    } catch (err: any) {
+      console.warn(`generate attempt ${attempt + 1} failed:`, err?.message);
+      if (attempt === MAX_RETRIES - 1) throw err;
+      lastFeedback = "Previous response was invalid. Return only JSON with both keys.";
     }
+  }
 
-    // Parse the HF “OpenAI-compatible” envelope; fall back if it’s a bit messy
-    let envelope: any;
-    try {
-        envelope = JSON.parse(raw);
-    } catch {
-        const cleaned = raw.replace(/^[^{]+/, "").replace(/[^}]+$/, "");
-        envelope = JSON.parse(cleaned);
-    }
-
-    const choice = envelope?.choices?.[0] ?? {};
-    const msg = choice?.message ?? {};
-
-    // Prefer standard content; fallback to provider quirks
-    const content: string =
-        msg?.content ??
-        choice?.text ?? // some providers put it here
-        msg?.tool_calls?.[0]?.function?.arguments ?? // “function call” JSON
-        "";
-
-    if (!content) {
-        // Helpful extra logging for diagnosis
-        console.error("Empty content. Choice keys:", Object.keys(choice || {}), "Msg keys:", Object.keys(msg || {}));
-        throw new Error("Empty model content");
-    }
-
-    // Your model is supposed to return JSON; handle “prose + JSON” too
-    let parsed: any;
-    try {
-        parsed = JSON.parse(content);
-    } catch {
-        parsed = extractFirstJsonObject(content);
-    }
-
-    if (typeof parsed?.keepsake !== "string" || typeof parsed?.image_prompt !== "string") {
-        throw new Error("Model JSON missing 'keepsake' or 'image_prompt'");
-    }
-
-    return { keepsake: parsed.keepsake, image_prompt: parsed.image_prompt };
+  throw new Error("Failed to generate after multiple attempts.");
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== "POST") {
-        res.setHeader("Allow", "POST");
-        return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ ok: false, error: "Missing GEMINI_API_KEY on server" });
+  }
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const memory: string = body?.memory;
+    const feedback: string | undefined = body?.feedback;
+
+    if (!memory?.trim()) {
+      return res.status(400).json({ ok: false, error: "Missing 'memory'." });
     }
 
-    try {
-        const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
-        const prompt: string = body?.prompt;
-        const max_new_tokens: number | undefined = body?.max_new_tokens;
-        const temperature: number | undefined = body?.temperature;
-
-        if (!process.env.HF_TOKEN) {
-            return res.status(500).json({ ok: false, error: "Missing HF_TOKEN on server" });
-        }
-        if (typeof prompt !== "string" || !prompt.trim()) {
-            return res.status(400).json({ ok: false, error: "Missing 'prompt' string" });
-        }
-
-        // Abort before the platform hard-kills us (clean error vs raw 502)
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-        const result = await withRetries(() =>
-            callHF({ prompt, max_new_tokens, temperature, signal: controller.signal })
-        ).finally(() => clearTimeout(timer));
-
-        return res.status(200).json({ ok: true, ...result });
-    } catch (e: any) {
-        const msg = String(e?.message || "Unknown error");
-        console.error("generate error:", msg);
-        // Normalize to 502 so your client shows a single retry UX
-        return res.status(502).json({ ok: false, error: msg.slice(0, 800) });
-    }
+    const { keepsake, image_prompt } = await generate(memory, feedback);
+    return res.status(200).json({ ok: true, keepsake, image_prompt });
+  } catch (e: any) {
+    const msg = String(e?.message || "Unknown error");
+    console.error("generate error:", msg);
+    return res.status(502).json({ ok: false, error: msg.slice(0, 800) });
+  }
 }

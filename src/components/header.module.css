@@ -1,9 +1,8 @@
-/* components/header.module.css */
 .header {
   width: 100%;
   padding: 1rem 2rem;
-  padding: 1rem;
-  color: #fff;
+  background: #FAF7F2;
+  border-bottom: 1px solid #D9CDBF;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -13,25 +12,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .logo {
   font-size: 1.4rem;
   font-weight: bold;
+  color: #2C1810;
+  letter-spacing: -0.01em;
 }
 
 .navLinks {
   list-style: none;
   display: flex;
-  gap: 2.0rem;
+  gap: 2rem;
 }
 
 .navLinks a {
   text-decoration: none;
-  color: #f0f0f0;
+  color: #7A6652;
+  font-size: 0.95rem;
   transition: color 0.2s ease;
 }
 
 .navLinks a:hover {
-  color: #ff00ff;
+  color: #8B5E3C;
 }

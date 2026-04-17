@@ -27,7 +27,7 @@ const HowItWorks = () => {
             description: "Type in your thoughts, feelings, or memories. Let the words flow naturally, capture what's in your heart right now.",
             icon: "✍️",
             demo: "The afternoon light filters through...",
-            color: "#ca00caff"
+            color: "#C4915A"
         },
         {
             number: "02",
@@ -35,16 +35,15 @@ const HowItWorks = () => {
             description: "Our AI transforms your words into a unique poem and generates a complementary image that captures the essence of your moment.",
             icon: "✨",
             demo: "Golden threads of sunlight weave / Through memories we can't retrieve...",
-            color: "#ff00ff"
+            color: "#8B5E3C"
         },
-        
         {
             number: "03",
             title: "Save to Memory",
             description: "Continue the conversation until your feel the essence has been captured. Your poem and image are preserved in your personal archive, creating a journal gallery of all the fleeting moment.",
             icon: "💾",
             demo: "Memory preserved • Feb 14, 2025",
-            color: "#ffb3ff"
+            color: "#B5737A"
         },
         {
             number: "04",
@@ -52,7 +51,7 @@ const HowItWorks = () => {
             description: "Return to your saved memories whenever you wish. Each one is a portal back to a moment that might otherwise be lost to time.",
             icon: "🌙",
             demo: "47 memories captured this month",
-            color: "#f8f8ff"
+            color: "#7A9A6A"
         }
     ];
 
@@ -110,18 +109,16 @@ const HowItWorks = () => {
 
                 {/* Call to Action */}
                 <div className={styles["cta-section"]}>
-                    <div className={styles["cta-card"]}>
-                        <h2 className={styles["cta-title"]}>Ready to Begin?</h2>
-                        <p className={styles["cta-description"]}>
-                            Start capturing the moments that make life beautiful
-                        </p>
-                        <button
-                            onClick={() => router.push("/journal")}
-                            className={styles["cta-button"]}
-                        >
-                            Create Your First Memory
-                        </button>
-                    </div>
+                    <h2 className={styles["cta-title"]}>Ready to Begin?</h2>
+                    <p className={styles["cta-description"]}>
+                        Start capturing the moments that make life beautiful
+                    </p>
+                    <button
+                        onClick={() => router.push("/journal")}
+                        className={styles["cta-button"]}
+                    >
+                        Create Your First Memory
+                    </button>
                 </div>
 
                 {/* Philosophy Section */}

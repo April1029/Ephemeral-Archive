@@ -1,9 +1,43 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { promises as fs } from 'fs';
+import path from 'path';
 
+const MODEL = 'gemini-2.5-flash-image';
 
-const MODEL = 'gemini-2.5-flash-image-preview';
+function getR2Client() {
+  return new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    },
+  });
+}
+
+async function saveImage(filename: string, data: Buffer, mime: string): Promise<string> {
+  // R2 path (production)
+  if (process.env.R2_ACCOUNT_ID) {
+    const r2 = getR2Client();
+    await r2.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: filename,
+      Body: data,
+      ContentType: mime,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
+    return `${process.env.R2_PUBLIC_URL}/${filename}`;
+  }
+
+  // Local filesystem fallback (development)
+  const dir = path.join(process.cwd(), 'public', 'generated-images');
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, filename), data);
+  return `/generated-images/${filename}`;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -22,33 +56,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Server missing GEMINI_API_KEY' });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL });
-
-    // The key change is here: The API expects the prompt text in a single part, not wrapped in a role.
-    const result = await model.generateContent({
-      contents: [{
-        role: 'user', 
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {}, 
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseModalities: ['TEXT', 'IMAGE'] },
     });
-    const parts = result?.response?.candidates?.[0]?.content?.parts ?? [];
 
-    let dataUrl: string | null = null;
+    const parts = response.candidates?.[0]?.content?.parts ?? [];
+
+    let base64: string | null = null;
+    let mime = 'image/png';
     let modelText = '';
 
     for (const p of parts as any[]) {
       if (p.text) modelText += p.text + '\n';
       if (p.inlineData?.data) {
-        const mime = p.inlineData?.mimeType || 'image/png';
-        const base64 = p.inlineData.data;
-        dataUrl = `data:${mime};base64,${base64}`;
+        base64 = p.inlineData.data;
+        mime = p.inlineData.mimeType || 'image/png';
         break;
       }
     }
 
-    if (!dataUrl) {
+    if (!base64) {
       return res.status(502).json({
         error: 'No image returned',
         note: modelText?.trim() || null,
@@ -56,14 +86,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    return res.status(200).json({
-      imageUrl: dataUrl,
-      note: modelText?.trim() || null,
-    });
+    const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const imageUrl = await saveImage(filename, Buffer.from(base64, 'base64'), mime);
+
+    return res.status(200).json({ imageUrl, note: modelText?.trim() || null });
   } catch (err: any) {
     console.error('generate-image error:', err?.stack || err);
-    return res.status(500).json({
-      error: err?.message || 'Image generation failed',
-    });
+    return res.status(500).json({ error: err?.message || 'Image generation failed' });
   }
 }

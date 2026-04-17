@@ -15,6 +15,8 @@ type MemoryItem = {
   _imagePrompt?: string;
 };
 
+const DRAFT_KEY = 'journal_draft';
+
 // shared helper so render + save use same rule
 function extractTitleFromKeepsake(ai?: string) {
   if (!ai?.trim()) return 'Untitled';
@@ -37,6 +39,23 @@ const CaptureMemory = () => {
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) setMemory(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (memory.trim()) {
+        localStorage.setItem(DRAFT_KEY, memory);
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch {}
+  }, [memory]);
 
   const renderKeepsake = (text: string) => {
     const trimmed = text.trim();
@@ -75,65 +94,21 @@ const CaptureMemory = () => {
     let imagePrompt = `Create a collage featuring the elements from ${memory}, incorporate the following artistic qualities: mixed-media collage, paper texture, torn edges, halftone, tape shadows, slight misregistration, and a matte finish. 
     Add evocative subjects, setting, lighting, and mood`;
 
-    // 1) Get keepsake + image prompt from text model first
+    // 1) Get keepsake + image prompt from text model
     try {
       const textRes = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt:
-            `You are a minimalist poet and a visual prompt writer. You are a direct content generator. Do not use any tools or functions.
-            Return ONLY a single JSON object. The JSON should have two keys: "keepsake" and "image_prompt".
-            - "keepsake": A single string. You are a minimalist poet. Write a short, poignant poem about the user's memory. The poem must have a brief title as the first line, followed by exactly three lines of verse. Each verse line must be 4–7 words long, imagistic, and concrete. Focus on sensory details, crisp nouns, and luminous verbs. Use the present tense. Do not use rhyme, clichés, or abstract concepts. Use newline characters (\\n) to separate the title and each verse line.
-            - "image_prompt": A single string. You are a visual prompt writer for a mixed-media collage image. Write a detailed, evocative prompt for image generation that captures the mood and elements of the user's memory. The collage should feature 3–5 distinct fragments, subjects, and a setting. The prompt must include the following style keywords: mixed-media collage, paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.
-            Example of the exact JSON format to return:
-            {
-            "keepsake": "Title: Quiet Afternoon\\nPaper cranes rest on the sill\\nSunlight casts long shadows\\nSoft hum of the refrigerator",
-            "image_prompt": "mixed-media collage featuring paper cranes on a windowsill with sunlight casting long shadows; incorporate a serene mood and the feel of a soft hum; paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish"
-            }
-            Do NOT return any other text, explanations, or markdown outside of the JSON object. Do NOT wrap the JSON in markdown code blocks.
-
-            User moment:
-            ${memory}
-            `,
-          max_new_tokens: 1024,
-          temperature: 0.9,
-        }),
+        body: JSON.stringify({ memory: memory.trim() }),
       });
 
       const gen = await textRes.json().catch(() => null);
 
-      if (!textRes.ok || !gen) {
-        const msg = (gen && (gen.error || JSON.stringify(gen).slice(0, 200))) || 'Unknown error';
-        aiOutput = `(Service unavailable) ${msg}`;
+      if (!textRes.ok || !gen?.ok) {
+        aiOutput = `(Service unavailable) ${gen?.error || 'Unknown error'}`;
       } else {
-        // NEW: prefer server's shape { ok, keepsake, image_prompt }
-        let k = (gen?.keepsake ?? '').toString().trim();
-        let ip = (gen?.image_prompt ?? '').toString().trim();
-
-        // Backward-compat fallbacks if your server ever returns prose or {text}
-        if (!k && typeof gen?.text === 'string' && gen.text.trim()) {
-          try {
-            const parsed = JSON.parse(gen.text);
-            k = (parsed?.keepsake ?? '').toString().trim();
-            ip = (parsed?.image_prompt ?? '').toString().trim() || ip;
-          } catch {
-            // Try to extract first {...} if provider wrapped with prose
-            const s = gen.text;
-            const start = s.indexOf('{');
-            const end = s.lastIndexOf('}');
-            if (start !== -1 && end !== -1 && end > start) {
-              try {
-                const parsed = JSON.parse(s.slice(start, end + 1));
-                k = (parsed?.keepsake ?? '').toString().trim() || k;
-                ip = (parsed?.image_prompt ?? '').toString().trim() || ip;
-              } catch { }
-            }
-          }
-        }
-
-        aiOutput = k || '(AI returned empty content)';
-        if (ip) imagePrompt = ip;
+        aiOutput = gen.keepsake || '(AI returned empty content)';
+        if (gen.image_prompt) imagePrompt = gen.image_prompt;
       }
     } catch (err) {
       aiOutput = '(Service request failed. Saved your original memory input.)';
@@ -162,7 +137,7 @@ const CaptureMemory = () => {
       console.error('Image request failed:', err);
     }
 
-    // 3) Save the memory (text + image)
+    // 3) Add to in-memory list
     const newMemory: MemoryItem = {
       id: Date.now(),
       content: memory,
@@ -172,11 +147,9 @@ const CaptureMemory = () => {
       _imagePrompt: imagePrompt,
     };
 
-    console.log('AI output:', aiOutput);
-    console.log('savedMemories (after save):', [newMemory, ...savedMemories]);
-
     setSavedMemories((prev) => [newMemory, ...prev]);
     if (!keepText) setMemory('');
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
     setIsSaving(false);
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
@@ -188,67 +161,22 @@ const CaptureMemory = () => {
       const textRes = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt:
-            `You are a minimalist poet and a visual prompt writer. Return ONLY a single JSON object with keys "keepsake" and "image_prompt".
-- "keepsake": A single string. Minimalist poem with a short title line, then exactly 3 lines of 4–7 words, sensory, concrete, present tense. Use \\n to separate lines.
-- "image_prompt": A single string for a mixed-media collage with 3–5 fragments, subjects, and a setting. MUST include: mixed-media collage, paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish.
-
-User moment:
-${mem.content}
-
-User feedback for regeneration (may be empty):
-${feedback}
-
-Example:
-{
-  "keepsake": "Title: Quiet Afternoon\\nPaper cranes rest on the sill\\nSunlight casts long shadows\\nSoft hum of the refrigerator",
-  "image_prompt": "mixed-media collage featuring paper cranes on a windowsill ... paper texture, torn edges, halftone, tape/glue shadows, slight misregistration, matte finish"
-}
-Do NOT return any text outside the JSON. Do NOT wrap in markdown.`,
-          max_new_tokens: 1024,
-          temperature: 0.9,
-        }),
+        body: JSON.stringify({ memory: mem.content, feedback }),
       });
 
       const gen = await textRes.json().catch(() => null);
 
-      // gracefully handle non-200 and weird shapes
-      if (!textRes.ok || !gen) {
-        console.error('Regenerate response not ok:', gen);
-        alert('Regeneration failed. The model did not respond properly.');
+      if (!textRes.ok || !gen?.ok) {
+        alert('Regeneration failed. ' + (gen?.error || 'The model did not respond properly.'));
         return;
       }
 
-      // Prefer server shape { keepsake, image_prompt }, with fallbacks
-      let keepsake = (gen?.keepsake ?? '').toString().trim();
-      let image_prompt = (gen?.image_prompt ?? '').toString().trim();
-
-      if (!keepsake && typeof gen?.text === 'string' && gen.text.trim()) {
-        try {
-          const parsed = JSON.parse(gen.text);
-          keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
-          image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
-        } catch {
-          const s = gen.text;
-          const start = s.indexOf('{');
-          const end = s.lastIndexOf('}');
-          if (start !== -1 && end !== -1 && end > start) {
-            try {
-              const parsed = JSON.parse(s.slice(start, end + 1));
-              keepsake = (parsed?.keepsake ?? '').toString().trim() || keepsake;
-              image_prompt = (parsed?.image_prompt ?? '').toString().trim() || image_prompt;
-            } catch { }
-          }
-        }
-      }
-
+      const { keepsake, image_prompt } = gen;
       if (!keepsake) {
-        console.error('Model JSON missing keepsake/image_prompt:', gen);
-        alert('Model response was not valid JSON with "keepsake". Try again or tweak feedback.');
+        alert('Model response was missing "keepsake". Try again or tweak feedback.');
         return;
       }
-      // update keepsake; (optional) refresh stored prompt too
+
       setSavedMemories(prev =>
         prev.map(m =>
           m.id === mem.id ? { ...m, ai: keepsake, _imagePrompt: image_prompt || m._imagePrompt } : m

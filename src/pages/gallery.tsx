@@ -34,6 +34,11 @@ const MemoryGallery: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [imageViewer, setImageViewer] = useState<{ url: string; alt?: string } | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const PAGE_SIZE = 20;
 
   // very simple mood guesser
   const deriveMood = (text: string): string => {
@@ -63,7 +68,20 @@ const MemoryGallery: React.FC = () => {
     };
   };
 
-  // Load from your library (SQLite via GET /api/memories) on first visit
+  const fetchPage = async (pageOffset: number, append: boolean, signal?: AbortSignal) => {
+    const res = await fetch(`/api/memories?limit=${PAGE_SIZE}&offset=${pageOffset}`, { signal });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error || `Failed to load memories (${res.status})`);
+    }
+    const rows: DbRow[] = await res.json();
+    const mapped = (rows || []).map(transformRow);
+    setMemories(prev => append ? [...prev, ...mapped] : mapped);
+    setOffset(pageOffset + mapped.length);
+    setHasMore(mapped.length === PAGE_SIZE);
+  };
+
+  // Load first page on mount
   useEffect(() => {
     const ac = new AbortController();
 
@@ -71,19 +89,12 @@ const MemoryGallery: React.FC = () => {
       try {
         setLoading(true);
         setLoadError(null);
-        const res = await fetch('/api/memories', { signal: ac.signal });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error || `Failed to load memories (${res.status})`);
-        }
-        const rows: DbRow[] = await res.json();
-        const mapped = (rows || []).map(transformRow);
-        setMemories(mapped);
+        await fetchPage(0, false, ac.signal);
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
           console.error(e);
           setLoadError(e?.message || 'Failed to load memories');
-          setMemories([]); // ensure a clean empty state
+          setMemories([]);
         }
       } finally {
         setLoading(false);
@@ -92,6 +103,17 @@ const MemoryGallery: React.FC = () => {
 
     return () => ac.abort();
   }, []);
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      await fetchPage(offset, true);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,12 +128,12 @@ const MemoryGallery: React.FC = () => {
 
   const getMoodColor = (mood: string) => {
     const colors: Record<string, string> = {
-      nostalgic: '#d946ef', // bright magenta
-      joyful: '#f472b6',  // soft pink-magenta
-      precious: '#ec4899',  // vivid pink
-      peaceful: '#c026d3',  // rich purple-magenta
-      euphoric: '#a21caf',  // deep magenta
-      default: '#e879f9',  // pastel magenta fallback
+      nostalgic: '#B5737A', // dusty rose
+      joyful:    '#C4915A', // warm amber
+      precious:  '#C47B5A', // terracotta
+      peaceful:  '#7A9A6A', // sage green
+      euphoric:  '#8B6B7A', // warm mauve
+      default:   '#A89888', // warm taupe
     };
     return colors[mood] || colors.default;
   };
@@ -221,21 +243,11 @@ const MemoryGallery: React.FC = () => {
           <button
             className={styles['retry-button']}
             onClick={() => {
-              // quick manual retry without remount
               setLoading(true);
               setLoadError(null);
-              (async () => {
-                try {
-                  const res = await fetch('/api/memories');
-                  if (!res.ok) throw new Error(`Failed (${res.status})`);
-                  const rows: DbRow[] = await res.json();
-                  setMemories((rows || []).map(transformRow));
-                } catch (e: any) {
-                  setLoadError(e?.message || 'Failed to load memories');
-                } finally {
-                  setLoading(false);
-                }
-              })();
+              fetchPage(0, false)
+                .catch((e: any) => setLoadError(e?.message || 'Failed to load memories'))
+                .finally(() => setLoading(false));
             }}
           >
             Try again
@@ -320,6 +332,19 @@ const MemoryGallery: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* Pagination */}
+        {hasMore && !searchTerm && (
+          <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+            <button
+              className={styles['retry-button']}
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Full Memory Modal */}
@@ -351,7 +376,7 @@ const MemoryGallery: React.FC = () => {
               }}
               role="button"
               tabIndex={0}
-              area-lable="Open image full screen"
+              aria-label="Open image full screen"
               onClick={(e) => {
                 e.stopPropagation();
                 if (selectedMemory.aiImage) {
