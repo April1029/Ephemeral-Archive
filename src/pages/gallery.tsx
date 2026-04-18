@@ -14,12 +14,13 @@ type Memory = {
   mood: string;          // derived locally
 };
 
-// Shape returned by /api/memories list (no image_url — too large)
+// Shape returned by /api/memories list
 type DbRow = {
   id: number;
   title: string;
   body: string;
   keepsake?: string | null;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -27,8 +28,6 @@ type DbRow = {
 const MemoryGallery: React.FC = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
-  const [modalImage, setModalImage] = useState<string | null>(null);
-  const [modalImageLoading, setModalImageLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [loading, setLoading] = useState(true);
@@ -60,25 +59,10 @@ const MemoryGallery: React.FC = () => {
       id: row.id,
       originalInput,
       aiPoem,
-      aiImage: '', // loaded on demand when modal opens
+      aiImage: (row.image_url ?? '').trim(),
       timestamp,
       mood: deriveMood(`${originalInput}\n${aiPoem}`),
     };
-  };
-
-  const openMemory = async (memory: Memory) => {
-    setSelectedMemory(memory);
-    setModalImage(null);
-    setModalImageLoading(true);
-    try {
-      const res = await fetch(`/api/memories/${memory.id}`);
-      const row = await res.json();
-      setModalImage((row.image_url ?? '').trim() || null);
-    } catch {
-      setModalImage(null);
-    } finally {
-      setModalImageLoading(false);
-    }
   };
 
   const fetchPage = async (pageOffset: number, append: boolean, signal?: AbortSignal) => {
@@ -133,7 +117,6 @@ const MemoryGallery: React.FC = () => {
       if (e.key === 'Escape') {
         setImageViewer(null);
         setSelectedMemory(null);
-        setModalImage(null);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -285,12 +268,12 @@ const MemoryGallery: React.FC = () => {
             {filteredAndSortedMemories.map((memory) => (
               <div
                 key={memory.id}
-                onClick={() => openMemory(memory)}
+                onClick={() => setSelectedMemory(memory)}
                 className={styles['memory-card']}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') openMemory(memory);
+                  if (e.key === 'Enter' || e.key === ' ') setSelectedMemory(memory);
                 }}
               >
                 {/* Mood indicator */}
@@ -299,10 +282,19 @@ const MemoryGallery: React.FC = () => {
                   style={{ background: getMoodColor(memory.mood) }}
                 />
 
-                {/* Mood gradient placeholder — image loads in modal */}
+                {/* AI Image or mood gradient fallback */}
                 <div
                   className={styles['memory-image']}
-                  style={{ background: `linear-gradient(135deg, ${getMoodColor(memory.mood)}33, ${getMoodColor(memory.mood)}99)` }}
+                  style={{
+                    backgroundImage: memory.aiImage
+                      ? `linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.3)), url(${memory.aiImage})`
+                      : undefined,
+                    background: memory.aiImage
+                      ? undefined
+                      : `linear-gradient(135deg, ${getMoodColor(memory.mood)}33, ${getMoodColor(memory.mood)}99)`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
                 >
                   <div className={styles['image-label']}>Memory Sketch</div>
                 </div>
@@ -350,7 +342,7 @@ const MemoryGallery: React.FC = () => {
       {selectedMemory && (
         <div
           className={styles['modal-overlay']}
-          onClick={() => { setSelectedMemory(null); setModalImage(null); }}
+          onClick={() => setSelectedMemory(null)}
           role="dialog"
           aria-modal="true"
         >
@@ -360,7 +352,7 @@ const MemoryGallery: React.FC = () => {
           >
             {/* Close button */}
             <button
-              onClick={() => { setSelectedMemory(null); setModalImage(null); }}
+              onClick={() => setSelectedMemory(null)}
               className={styles['modal-close']}
               aria-label="Close"
             >
@@ -369,28 +361,28 @@ const MemoryGallery: React.FC = () => {
 
             {/* Full AI Image */}
             <div
-              className={`${styles['modal-image']} ${modalImage ? styles['modal-image--clickable'] : ''}`}
+              className={`${styles['modal-image']} ${selectedMemory.aiImage ? styles['modal-image--clickable'] : ''}`}
               style={{
-                backgroundImage: modalImage
-                  ? `linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.4)), url(${modalImage})`
+                backgroundImage: selectedMemory.aiImage
+                  ? `linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.4)), url(${selectedMemory.aiImage})`
                   : `linear-gradient(135deg, ${getMoodColor(selectedMemory.mood)}33, ${getMoodColor(selectedMemory.mood)}99)`,
               }}
-              role={modalImage ? 'button' : undefined}
-              tabIndex={modalImage ? 0 : undefined}
-              aria-label={modalImage ? 'Open image full screen' : undefined}
+              role={selectedMemory.aiImage ? 'button' : undefined}
+              tabIndex={selectedMemory.aiImage ? 0 : undefined}
+              aria-label={selectedMemory.aiImage ? 'Open image full screen' : undefined}
               onClick={(e) => {
                 e.stopPropagation();
-                if (modalImage) setImageViewer({ url: modalImage, alt: 'AI generated memory sketch' });
+                if (selectedMemory.aiImage) setImageViewer({ url: selectedMemory.aiImage, alt: 'AI generated memory sketch' });
               }}
               onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && modalImage) {
+                if ((e.key === 'Enter' || e.key === ' ') && selectedMemory.aiImage) {
                   e.stopPropagation();
-                  setImageViewer({ url: modalImage, alt: 'AI generated memory sketch' });
+                  setImageViewer({ url: selectedMemory.aiImage, alt: 'AI generated memory sketch' });
                 }
               }}
             >
               <div className={styles['modal-image-label']}>
-                {modalImageLoading ? 'Loading sketch…' : modalImage ? 'Memory Sketch • Click to expand' : 'No sketch available'}
+                {selectedMemory.aiImage ? 'Memory Sketch • Click to expand' : 'No sketch available'}
               </div>
             </div>
 
