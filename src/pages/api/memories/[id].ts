@@ -11,6 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === "GET") {
     const result = await execute("SELECT * FROM memories WHERE id = ?", [id]);
     if (!result.rows[0]) return res.status(404).json({ error: "Not found." });
+    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
     return res.status(200).json(result.rows[0]);
   }
 

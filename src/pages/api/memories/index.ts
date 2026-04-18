@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (typeof q === "string" && q.trim()) {
       const result = await execute(
-        `SELECT id, title, body, keepsake, image_url, created_at, updated_at
+        `SELECT id, title, body, keepsake, created_at, updated_at
          FROM memories
          WHERE title LIKE ? OR body LIKE ? OR keepsake LIKE ?
          ORDER BY created_at DESC
@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
 
     const result = await execute(
-      `SELECT id, title, body, keepsake, image_url, created_at, updated_at
+      `SELECT id, title, body, keepsake, created_at, updated_at
        FROM memories
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
