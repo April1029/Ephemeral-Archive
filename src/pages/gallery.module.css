@@ -242,6 +242,15 @@
   overflow: hidden;
 }
 
+.poem-title {
+  color: #5C3D2E;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
 .poem-text {
   color: #5C3D2E;
   line-height: 1.7;
@@ -375,8 +384,17 @@
   padding: 1.5rem;
   border-radius: 10px;
   border: 1px solid #D9CDBF;
-  white-space: pre-line;
   text-align: center;
+}
+
+.modal-poem-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8B6B5A;
+  margin-bottom: 0.75rem;
 }
 
 .modal-timestamp {

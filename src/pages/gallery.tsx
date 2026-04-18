@@ -47,6 +47,14 @@ function getMoodColor(mood: string): string {
   return MOOD_COLORS[mood] || MOOD_COLORS.default;
 }
 
+function parseKeepsake(raw: string): { title: string; body: string } {
+  const trimmed = raw.trim();
+  const [firstLine, ...rest] = trimmed.split(/\r?\n/);
+  const title = firstLine.replace(/^(\s*title\s*[:\-]\s*)/i, '').trim();
+  const body = rest.join('\n').trim();
+  return { title, body };
+}
+
 // ─── Per-card component ────────────────────────────────────────────────────────
 type MemoryCardProps = {
   memory: Memory;
@@ -108,7 +116,15 @@ const MemoryCard: React.FC<MemoryCardProps> = ({
         </div>
         <div className={styles['content-section']}>
           <h4 className={styles['content-label']}>Ephemeral Lines</h4>
-          <p className={styles['poem-text']}>{memory.aiPoem}</p>
+          {(() => {
+            const { title, body } = parseKeepsake(memory.aiPoem);
+            return (
+              <>
+                {title && <p className={styles['poem-title']}>{title}</p>}
+                <p className={styles['poem-text']}>{body || title}</p>
+              </>
+            );
+          })()}
         </div>
         <div className={styles['memory-footer']}>
           <span>{formatDate(memory.timestamp)}</span>
@@ -429,9 +445,17 @@ const MemoryGallery: React.FC = () => {
                   <h3 className={styles['modal-section-title']} style={{ color }}>
                     Ephemeral Lines
                   </h3>
-                  <div className={styles['modal-poem-text']}>
-                    {selectedMemory.aiPoem}
-                  </div>
+                  {(() => {
+                    const { title, body } = parseKeepsake(selectedMemory.aiPoem);
+                    return (
+                      <div className={styles['modal-poem-text']}>
+                        {title && <p className={styles['modal-poem-title']}>{title}</p>}
+                        {(body || title).split(/\n+/).map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className={styles['modal-timestamp']}>
