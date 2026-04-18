@@ -2,6 +2,10 @@ export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { execute, ensureMigrated } from "../../../lib/db";
 
+export const config = {
+  api: { bodyParser: { sizeLimit: "10mb" } },
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   await ensureMigrated();
 
