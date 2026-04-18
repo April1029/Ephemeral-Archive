@@ -1,43 +1,8 @@
 export const runtime = "nodejs";
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenAI } from '@google/genai';
-import { AwsClient } from 'aws4fetch';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 const MODEL = 'gemini-2.5-flash-image';
-
-async function saveImage(filename: string, data: Buffer, mime: string): Promise<string> {
-  // R2 path (production)
-  if (process.env.R2_ACCOUNT_ID) {
-    const r2 = new AwsClient({
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-      region: 'auto',
-      service: 's3',
-    });
-    const url = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${filename}`;
-    const uploadRes = await r2.fetch(url, {
-      method: 'PUT',
-      body: new Uint8Array(data),
-      headers: {
-        'Content-Type': mime,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
-    if (!uploadRes.ok) {
-      const text = await uploadRes.text().catch(() => '');
-      throw new Error(`R2 upload failed (${uploadRes.status}): ${text}`);
-    }
-    return `${process.env.R2_PUBLIC_URL}/${filename}`;
-  }
-
-  // Local filesystem fallback (development)
-  const dir = path.join(process.cwd(), 'public', 'generated-images');
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, filename), data);
-  return `/generated-images/${filename}`;
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -86,9 +51,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const imageUrl = await saveImage(filename, Buffer.from(base64, 'base64'), mime);
+    // Store as base64 data URI directly in Turso — no external storage needed
+    const imageUrl = `data:${mime};base64,${base64}`;
 
     return res.status(200).json({ imageUrl, note: modelText?.trim() || null });
   } catch (err: any) {
